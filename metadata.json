@@ -1,0 +1,6 @@
+{
+  "name": "IDEAL HRMS — Ideal Industrial Synergy Solutions",
+  "description": "Enterprise Human Resource Management System for IDEAL INDUSTRIAL SYNERGY SOLUTIONS PRIVATE LIMITED with mobile attendance, live GPS tracking, offline PWA sync, leave management, Indian payroll, performance reviews, and Google Apps Script / Google Sheets integration.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

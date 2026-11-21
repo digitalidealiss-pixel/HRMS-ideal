@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IDEAL HRMS — Ideal Industrial Synergy Solutions Private Limited</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0B1B36" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="/assets/css/hrms.css" rel="stylesheet" />
+</head>
+<body class="d-flex align-items-center justify-content-center min-vh-100">
+  <div class="text-center p-4">
+    <h1 class="h4 fw-bold text-dark">IDEAL HRMS</h1>
+    <p class="text-muted small">IDEAL INDUSTRIAL SYNERGY SOLUTIONS PRIVATE LIMITED</p>
+    <p class="small text-secondary mt-3">Routing to your workspace...</p>
+  </div>
+  <script src="/config/app-config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js');
+    }
+    const user = window.IdealApi.getUser();
+    const token = window.IdealApi.getToken();
+    if (!token || !user) {
+      window.location.replace('/login.html');
+    } else if (user.role === 'SUPER_ADMIN' || user.role === 'HR_ADMIN') {
+      window.location.replace('/admin.html');
+    } else {
+      window.location.replace('/employee.html');
+    }
+  </script>
+</body>
+</html>
