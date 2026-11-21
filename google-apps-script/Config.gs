@@ -74,3 +74,38 @@ function getHmacSecret_() {
   }
   return secret;
 }
+
+var INDIAN_HOLIDAYS_2027 = [
+  { holidayId: 'IND2027-01', date: '2027-01-01', name: "New Year's Day", type: 'REGIONAL', isOptional: true, description: 'DoPT Restricted / Optional Holiday across India' },
+  { holidayId: 'IND2027-02', date: '2027-01-14', name: 'Lohri / Bhogi', type: 'REGIONAL', isOptional: true, description: 'Harvest eve festival observed in North India (Lohri) & South India (Bhogi)' },
+  { holidayId: 'IND2027-03', date: '2027-01-15', name: 'Makar Sankranti / Pongal', type: 'REGIONAL', isOptional: false, description: 'Major harvest festival · Magh Bihu, Uttarayan & Thai Pongal' },
+  { holidayId: 'IND2027-04', date: '2027-01-26', name: 'Republic Day', type: 'NATIONAL', isOptional: false, description: 'National Gazetted Holiday · Republic Day of India' },
+  { holidayId: 'IND2027-05', date: '2027-02-11', name: 'Vasant Panchami / Saraswati Puja', type: 'REGIONAL', isOptional: true, description: 'DoPT Restricted Holiday · Spring festival & Saraswati Puja' },
+  { holidayId: 'IND2027-06', date: '2027-02-19', name: 'Chhatrapati Shivaji Maharaj Jayanti', type: 'REGIONAL', isOptional: true, description: 'State Public Holiday (Maharashtra) · Birth anniversary of Chhatrapati Shivaji Maharaj' },
+  { holidayId: 'IND2027-07', date: '2027-03-06', name: 'Maha Shivaratri', type: 'REGIONAL', isOptional: false, description: 'Major Pan-India Festival & DoPT Restricted Holiday' },
+  { holidayId: 'IND2027-08', date: '2027-03-10', name: 'Id-ul-Fitr (Eid al-Fitr)', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday (subject to sighting of the moon)' },
+  { holidayId: 'IND2027-09', date: '2027-03-22', name: 'Holi (Dhulandi / Panchang)', type: 'REGIONAL', isOptional: true, description: 'Rangwali Holi per Drik Panchang (Holika Dahan: 21 Mar 2027)' },
+  { holidayId: 'IND2027-10', date: '2027-03-23', name: 'Holi (Central Govt Gazetted)', type: 'NATIONAL', isOptional: false, description: 'Central Government Gazetted Holiday per DoPT 2027 Order' },
+  { holidayId: 'IND2027-11', date: '2027-03-26', name: 'Good Friday', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday' },
+  { holidayId: 'IND2027-12', date: '2027-04-07', name: 'Ugadi / Gudi Padwa', type: 'REGIONAL', isOptional: true, description: 'Chaitra Sukhladi / Lunar New Year across Maharashtra, Karnataka, AP & Telangana' },
+  { holidayId: 'IND2027-13', date: '2027-04-14', name: 'Dr. B.R. Ambedkar Jayanti / Baisakhi', type: 'REGIONAL', isOptional: false, description: 'Birth anniversary of Dr. B.R. Ambedkar, Vaisakhi & Vishu' },
+  { holidayId: 'IND2027-14', date: '2027-04-15', name: 'Ram Navami', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday · Sri Rama Navami' },
+  { holidayId: 'IND2027-15', date: '2027-04-19', name: 'Mahavir Jayanti', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday · Birth anniversary of Lord Mahavira' },
+  { holidayId: 'IND2027-16', date: '2027-05-01', name: 'Maharashtra Day / May Day', type: 'REGIONAL', isOptional: true, description: 'International Labour Day & State Formation Day (Maharashtra / Gujarat)' },
+  { holidayId: 'IND2027-17', date: '2027-05-17', name: 'Id-ul-Zuha (Bakrid)', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday (subject to sighting of the moon)' },
+  { holidayId: 'IND2027-18', date: '2027-05-20', name: 'Buddha Purnima', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday · Vesak' },
+  { holidayId: 'IND2027-19', date: '2027-06-16', name: 'Muharram', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday (subject to sighting of the moon)' },
+  { holidayId: 'IND2027-20', date: '2027-08-15', name: 'Independence Day & Milad-un-Nabi', type: 'NATIONAL', isOptional: false, description: 'National Gazetted Holiday · Independence Day (coincides with Id-e-Milad)' },
+  { holidayId: 'IND2027-21', date: '2027-08-17', name: 'Raksha Bandhan', type: 'REGIONAL', isOptional: true, description: 'DoPT Restricted Holiday · Raksha Bandhan' },
+  { holidayId: 'IND2027-22', date: '2027-08-25', name: 'Janmashtami (Vaishnava)', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday · Sri Krishna Janmashtami' },
+  { holidayId: 'IND2027-23', date: '2027-09-04', name: 'Ganesh Chaturthi', type: 'REGIONAL', isOptional: false, description: 'Major Regional & DoPT Restricted Holiday · Vinayaka Chaturthi' },
+  { holidayId: 'IND2027-24', date: '2027-09-12', name: 'Onam (Thiruvonam)', type: 'REGIONAL', isOptional: true, description: 'Kerala Harvest Festival · DoPT Restricted Holiday' },
+  { holidayId: 'IND2027-25', date: '2027-10-02', name: 'Mahatma Gandhi Jayanti', type: 'NATIONAL', isOptional: false, description: 'National Gazetted Holiday · Birth anniversary of Mahatma Gandhi' },
+  { holidayId: 'IND2027-26', date: '2027-10-07', name: 'Maha Ashtami (Durga Puja)', type: 'REGIONAL', isOptional: true, description: 'Durga Puja Ashtami · DoPT Restricted Holiday' },
+  { holidayId: 'IND2027-27', date: '2027-10-09', name: 'Dussehra (Vijaya Dashami)', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday · Vijaya Dashami' },
+  { holidayId: 'IND2027-28', date: '2027-10-29', name: 'Diwali (Deepavali)', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday · Festival of Lights' },
+  { holidayId: 'IND2027-29', date: '2027-10-31', name: 'Bhai Duj', type: 'REGIONAL', isOptional: true, description: 'DoPT Restricted Holiday · Bhai Dooj' },
+  { holidayId: 'IND2027-30', date: '2027-11-04', name: 'Chhath Puja (Pratihar Shashthi)', type: 'REGIONAL', isOptional: true, description: 'DoPT Restricted Holiday · Surya Shashthi' },
+  { holidayId: 'IND2027-31', date: '2027-11-14', name: 'Guru Nanak Jayanti', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday · Guru Nanak Gurpurab' },
+  { holidayId: 'IND2027-32', date: '2027-12-25', name: 'Christmas Day', type: 'NATIONAL', isOptional: false, description: 'Central Gazetted Holiday · Christmas' }
+];

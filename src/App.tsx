@@ -2,6 +2,7 @@ import {
   Award,
   Bell,
   CalendarDays,
+  CalendarRange,
   CheckSquare,
   ChevronLeft,
   ChevronRight,
@@ -32,6 +33,7 @@ import {DashboardView} from './components/dashboard/DashboardView';
 import {DeploymentKitView} from './components/deployment/DeploymentKitView';
 import {EmployeesView} from './components/employees/EmployeesView';
 import {FoodAllowanceView} from './components/food/FoodAllowanceView';
+import {HolidayCalendarView} from './components/holidays/HolidayCalendarView';
 import {LeavesView} from './components/leaves/LeavesView';
 import {LocationTrackingView} from './components/location/LocationTrackingView';
 import {NotificationsView} from './components/notifications/NotificationsView';
@@ -69,6 +71,7 @@ const NAV_ITEMS: NavItem[] = [
   {id: 'food', label: 'Food Allowance', icon: UtensilsCrossed, roles: ['SUPER_ADMIN', 'HR_ADMIN', 'EMPLOYEE'], accentColor: 'text-amber-300'},
   {id: 'employees', label: 'Employees', icon: Users, roles: ['SUPER_ADMIN', 'HR_ADMIN', 'EMPLOYEE'], accentColor: 'text-indigo-300'},
   {id: 'leaves', label: 'Leaves', icon: CalendarDays, roles: ['SUPER_ADMIN', 'HR_ADMIN', 'EMPLOYEE'], accentColor: 'text-amber-400'},
+  {id: 'holidays', label: 'Holiday Calendar', icon: CalendarRange, roles: ['SUPER_ADMIN', 'HR_ADMIN', 'EMPLOYEE'], accentColor: 'text-emerald-300'},
   {id: 'payroll', label: 'Payroll', icon: IndianRupee, roles: ['SUPER_ADMIN', 'HR_ADMIN', 'EMPLOYEE'], accentColor: 'text-emerald-300'},
   {id: 'performance', label: 'Performance', icon: Award, roles: ['SUPER_ADMIN', 'HR_ADMIN', 'EMPLOYEE'], accentColor: 'text-amber-300'},
   {id: 'tasks', label: 'Tasks', icon: CheckSquare, roles: ['SUPER_ADMIN', 'HR_ADMIN', 'EMPLOYEE'], accentColor: 'text-sky-300'},
@@ -458,7 +461,14 @@ export default function App() {
           {activeTab === 'location' && isAdmin && <LocationTrackingView user={user} onToast={pushToast} />}
           {activeTab === 'travel' && <TravelConveyanceView user={user} onToast={pushToast} />}
           {activeTab === 'food' && <FoodAllowanceView user={user} onToast={pushToast} />}
-          {activeTab === 'leaves' && <LeavesView user={user} onToast={pushToast} />}
+          {activeTab === 'leaves' && (
+            <LeavesView
+              user={user}
+              onToast={pushToast}
+              onOpenHolidayCalendar={() => setActiveTab('holidays')}
+            />
+          )}
+          {activeTab === 'holidays' && <HolidayCalendarView user={user} onToast={pushToast} />}
           {activeTab === 'payroll' && <PayrollView user={user} onToast={pushToast} />}
           {activeTab === 'performance' && <PerformanceView user={user} onToast={pushToast} />}
           {activeTab === 'tasks' && <TasksView user={user} onToast={pushToast} />}

@@ -401,6 +401,106 @@
               await renderSection('food');
             });
           });
+        } else if (section === 'holidays') {
+          pageTitle.textContent = 'Indian Holiday Calendar System (2027 · Admin Editable)';
+          const holRes = await window.IdealApi.call('getHolidays', {});
+          const allHols = holRes.holidays || [];
+          const hols2027 = allHols.filter((h) => String(h.date || '').startsWith('2027-'));
+          const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          const getDayLabel = (dStr) => {
+            const m = String(dStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (!m) return '—';
+            const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+            return weekdayNames[dt.getUTCDay()] || '—';
+          };
+
+          tableMount.innerHTML =
+            `<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+              <div>
+                <h3 class="h6 fw-semibold mb-0">2027 Indian Holiday Calendar (${hols2027.length} in 2027 · ${allHols.length} Total)</h3>
+                <div class="small text-muted">Aligned with DoPT 2027 Gazetted &amp; Restricted holidays · Only Super Admin &amp; HR Admin can edit.</div>
+              </div>
+              <div class="d-flex gap-2">
+                <button id="hostSync2027Btn" type="button" class="btn btn-outline-success btn-sm">Sync Missing 2027 Indian Holidays</button>
+              </div>
+            </div>
+            <div class="mb-4 p-3 rounded border bg-light">
+              <div class="fw-semibold small mb-2" id="hostHolFormTitle">Add / Edit Holiday</div>
+              <form id="hostHolForm" class="row g-2 small">
+                <input id="hostHolId" type="hidden" value="" />
+                <div class="col-6 col-md-2"><input id="hostHolDate" type="date" value="2027-01-26" required class="form-control form-control-sm" /></div>
+                <div class="col-6 col-md-3"><input id="hostHolName" type="text" maxlength="120" required placeholder="Holiday Name" class="form-control form-control-sm" /></div>
+                <div class="col-6 col-md-2">
+                  <select id="hostHolType" class="form-select form-select-sm">
+                    <option value="NATIONAL">NATIONAL</option>
+                    <option value="REGIONAL">REGIONAL</option>
+                    <option value="COMPANY">COMPANY</option>
+                  </select>
+                </div>
+                <div class="col-6 col-md-3"><input id="hostHolDesc" type="text" maxlength="240" placeholder="Notes / Gazetted details" class="form-control form-control-sm" /></div>
+                <div class="col-12 col-md-2 d-flex gap-1">
+                  <button type="submit" class="btn btn-navy btn-sm flex-fill">Save</button>
+                  <button id="hostHolResetFormBtn" type="button" class="btn btn-outline-secondary btn-sm">Clear</button>
+                </div>
+              </form>
+            </div>
+            <div class="table-responsive"><table class="table table-sm small mb-0"><thead><tr><th>Date</th><th>Day</th><th>Holiday Name</th><th>Category</th><th>Notes</th><th>Actions</th></tr></thead><tbody>` +
+            (allHols.map((h) => `<tr>
+              <td class="font-monospace fw-semibold tabular-nums">${esc(h.date)}</td>
+              <td class="text-muted">${esc(getDayLabel(h.date))}</td>
+              <td><strong>${esc(h.name)}</strong></td>
+              <td>${esc(h.type)}${h.isOptional ? ' (Optional)' : ''}</td>
+              <td class="text-muted">${esc(h.description || '')}</td>
+              <td class="text-nowrap">
+                <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2 me-1" data-hol-edit="${esc(h.holidayId)}">Edit</button>
+                <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" data-hol-del="${esc(h.holidayId)}">Delete</button>
+              </td>
+            </tr>`).join('') || '<tr><td colspan="6" class="text-muted">No holidays configured yet.</td></tr>') +
+            `</tbody></table></div>`;
+
+          document.getElementById('hostSync2027Btn').addEventListener('click', async () => {
+            await window.IdealApi.call('seedIndianHolidays2027', { mode: 'MERGE_MISSING' });
+            await renderSection('holidays');
+          });
+          document.getElementById('hostHolResetFormBtn').addEventListener('click', () => {
+            document.getElementById('hostHolId').value = '';
+            document.getElementById('hostHolDate').value = '2027-01-26';
+            document.getElementById('hostHolName').value = '';
+            document.getElementById('hostHolType').value = 'COMPANY';
+            document.getElementById('hostHolDesc').value = '';
+            document.getElementById('hostHolFormTitle').textContent = 'Add / Edit Holiday';
+          });
+          document.getElementById('hostHolForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await window.IdealApi.call('saveHoliday', {
+              holidayId: document.getElementById('hostHolId').value || undefined,
+              date: document.getElementById('hostHolDate').value,
+              name: document.getElementById('hostHolName').value,
+              type: document.getElementById('hostHolType').value,
+              description: document.getElementById('hostHolDesc').value
+            });
+            await renderSection('holidays');
+          });
+          tableMount.querySelectorAll('[data-hol-edit]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const hid = btn.getAttribute('data-hol-edit');
+              const found = allHols.find((h) => h.holidayId === hid);
+              if (!found) return;
+              document.getElementById('hostHolId').value = found.holidayId;
+              document.getElementById('hostHolDate').value = found.date;
+              document.getElementById('hostHolName').value = found.name;
+              document.getElementById('hostHolType').value = found.type || 'COMPANY';
+              document.getElementById('hostHolDesc').value = found.description || '';
+              document.getElementById('hostHolFormTitle').textContent = `Editing Holiday (${found.date})`;
+              document.getElementById('hostHolForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+          });
+          tableMount.querySelectorAll('[data-hol-del]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              await window.IdealApi.call('deleteHoliday', { holidayId: btn.getAttribute('data-hol-del') });
+              await renderSection('holidays');
+            });
+          });
         } else if (section === 'payroll') {
           pageTitle.textContent = 'Payroll Register';
           const payRes = await window.IdealApi.call('getPayrollData', {});
@@ -1127,8 +1227,42 @@
       });
     });
 
+    const empHolYear = document.getElementById('empHolYear');
+    const empHolidaysMount = document.getElementById('empHolidaysMount');
+    async function loadEmployeeHolidays() {
+      if (!empHolidaysMount) return;
+      try {
+        const res = await window.IdealApi.call('getHolidays', {});
+        const hols = res.holidays || [];
+        const yr = empHolYear ? empHolYear.value : '2027';
+        const filtered = yr === 'ALL' ? hols : hols.filter((h) => String(h.date || '').startsWith(`${yr}-`));
+        const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const getWd = (dStr) => {
+          const m = String(dStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (!m) return '—';
+          return weekdayNames[new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay()] || '—';
+        };
+        empHolidaysMount.innerHTML = filtered.map((h) =>
+          `<div class="border-bottom py-2 d-flex justify-content-between align-items-start gap-2">
+            <div>
+              <strong>${esc(h.name)}</strong>
+              ${h.description ? `<div class="small text-muted">${esc(h.description)}</div>` : ''}
+            </div>
+            <div class="text-end text-nowrap">
+              <div class="font-monospace fw-semibold tabular-nums">${esc(h.date)} (${esc(getWd(h.date))})</div>
+              <div class="small text-muted">${esc(h.type)}${h.isOptional ? ' · Optional' : ''}</div>
+            </div>
+          </div>`
+        ).join('') || `No holidays scheduled for ${esc(yr)}.`;
+      } catch {
+        empHolidaysMount.textContent = 'Unable to load holiday calendar.';
+      }
+    }
+    if (empHolYear) empHolYear.addEventListener('change', loadEmployeeHolidays);
+
     loadTravelClaims();
     loadFoodAllowances();
+    loadEmployeeHolidays();
     loadHistory();
   }
 })();

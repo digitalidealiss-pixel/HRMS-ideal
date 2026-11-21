@@ -94,10 +94,15 @@ export default defineConfig(() => {
         apply: 'serve' as const,
         transform(code: string, id: string) {
           if (id.includes('vite/dist/client/client.mjs') || id.endsWith('/@vite/client')) {
-            return code.replace(
-              'transport.connect(createHMRHandler(handleMessage));',
-              '/* HMR WebSocket disabled */',
-            );
+            return code
+              .replace(
+                'transport.connect(createHMRHandler(handleMessage));',
+                '/* HMR WebSocket disabled */',
+              )
+              .replace(
+                /else\s+throw\s+new\s+SendBeforeConnectError\([^)]*\);/g,
+                'else return;',
+              );
           }
           return undefined;
         },

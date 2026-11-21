@@ -48,7 +48,7 @@ var SHEET_SCHEMA = {
     'documentUrl', 'status', 'reviewedBy', 'reviewerRole', 'rejectionReason', 'appliedAt', 'updatedAt'
   ],
   Leave_Balances: ['balanceId', 'employeeId', 'leaveTypeId', 'leaveTypeName', 'year', 'allocated', 'used', 'remaining'],
-  Holidays: ['holidayId', 'date', 'name', 'type'],
+  Holidays: ['holidayId', 'date', 'name', 'type', 'description', 'isOptional'],
   Salary_Structure: [
     'structureId', 'employeeId', 'basicSalary', 'hra', 'conveyanceAllowance', 'specialAllowance',
     'overtimeHourlyRate', 'pfApplicable', 'pfEmployeePercent', 'pfEmployerPercent', 'pfWageCap',
@@ -167,7 +167,7 @@ function initializeDatabase() {
   var settingsSheet = ss.getSheetByName(SHEET_NAMES.APP_SETTINGS);
   if (settingsSheet.getLastRow() <= 1) {
     var now = new Date().toISOString();
-    settingsSheet.getRange(2, 1, 20, 3).setValues([
+    settingsSheet.getRange(2, 1, 21, 3).setValues([
       ['companyName', COMPANY_CONFIG.COMPANY_NAME, now],
       ['companyCode', COMPANY_CONFIG.COMPANY_CODE, now],
       ['shiftStartTime', '09:30', now],
@@ -187,8 +187,17 @@ function initializeDatabase() {
       ['requireCheckoutSelfie', 'true', now],
       ['locationStaleMinutes', '5', now],
       ['weeklyOffDay', 'Sunday', now],
-      ['adminRecoveryEmail', '', now]
+      ['adminRecoveryEmail', '', now],
+      ['holidays2027Seeded', 'true', now]
     ]);
+  }
+
+  var holidaysSheet = ss.getSheetByName(SHEET_NAMES.HOLIDAYS);
+  if (holidaysSheet && holidaysSheet.getLastRow() <= 1 && typeof INDIAN_HOLIDAYS_2027 !== 'undefined' && INDIAN_HOLIDAYS_2027.length > 0) {
+    var holRows = INDIAN_HOLIDAYS_2027.map(function (h) {
+      return [h.holidayId, h.date, h.name, h.type, h.description || '', Boolean(h.isOptional)];
+    });
+    holidaysSheet.getRange(2, 1, holRows.length, 6).setValues(holRows);
   }
 
   // Remove default empty Sheet1 if present

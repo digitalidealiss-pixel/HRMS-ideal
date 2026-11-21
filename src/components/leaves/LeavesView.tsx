@@ -14,9 +14,10 @@ import type {
 interface LeavesViewProps {
   user: AuthUser;
   onToast: (type: 'success' | 'error' | 'warning' | 'info', title: string, message?: string) => void;
+  onOpenHolidayCalendar?: () => void;
 }
 
-export function LeavesView({user, onToast}: LeavesViewProps) {
+export function LeavesView({user, onToast, onOpenHolidayCalendar}: LeavesViewProps) {
   const [leaveTypes, setLeaveTypes] = useState<LeaveTypeConfig[]>([]);
   const [applications, setApplications] = useState<LeaveApplication[]>([]);
   const [balances, setBalances] = useState<LeaveBalanceRecord[]>([]);
@@ -57,6 +58,9 @@ export function LeavesView({user, onToast}: LeavesViewProps) {
   const [holDate, setHolDate] = useState('');
   const [holName, setHolName] = useState('');
   const [holType, setHolType] = useState<HolidayRecord['type']>('COMPANY');
+  const [holDesc, setHolDesc] = useState('');
+  const [holOptional, setHolOptional] = useState(false);
+  const [holYearFilter, setHolYearFilter] = useState('2027');
 
   // Admin Leave Balance Edit Modal
   const [editingBalance, setEditingBalance] = useState<LeaveBalanceRecord | null>(null);
@@ -208,11 +212,15 @@ export function LeavesView({user, onToast}: LeavesViewProps) {
         date: holDate,
         name: holName,
         type: holType,
+        description: holDesc,
+        isOptional: holOptional,
       });
       setEditingHolidayId('');
       setHolDate('');
       setHolName('');
       setHolType('COMPANY');
+      setHolDesc('');
+      setHolOptional(false);
       setShowHolidayModal(false);
       onToast('success', editingHolidayId ? 'Holiday updated' : 'Holiday added');
       await loadLeaveData();
@@ -288,9 +296,11 @@ export function LeavesView({user, onToast}: LeavesViewProps) {
                 type="button"
                 onClick={() => {
                   setEditingHolidayId('');
-                  setHolDate('');
+                  setHolDate('2027-01-26');
                   setHolName('');
                   setHolType('COMPANY');
+                  setHolDesc('');
+                  setHolOptional(false);
                   setShowHolidayModal(true);
                 }}
                 className="min-h-[40px] rounded-lg border border-white/25 bg-white/10 px-3.5 py-2 text-xs font-medium text-white hover:bg-white/20"
@@ -449,37 +459,65 @@ export function LeavesView({user, onToast}: LeavesViewProps) {
 
         {/* Holiday Calendar */}
         <div className="rounded-xl border border-slate-200 bg-white p-5 lg:col-span-4">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-[#0B1B36]" />
               <h2 className="font-display text-sm font-semibold text-slate-900">Holiday Calendar</h2>
             </div>
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingHolidayId('');
-                  setHolDate('');
-                  setHolName('');
-                  setHolType('COMPANY');
-                  setShowHolidayModal(true);
-                }}
-                className="rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+            <div className="flex items-center gap-1.5">
+              <select
+                value={holYearFilter}
+                onChange={(e) => setHolYearFilter(e.target.value)}
+                className="rounded border border-slate-200 px-2 py-1 font-mono text-[11px] text-slate-700"
               >
-                + Add
-              </button>
-            )}
+                <option value="2027">2027</option>
+                <option value="2026">2026</option>
+                <option value="ALL">All</option>
+              </select>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingHolidayId('');
+                    setHolDate('2027-01-26');
+                    setHolName('');
+                    setHolType('COMPANY');
+                    setHolDesc('');
+                    setHolOptional(false);
+                    setShowHolidayModal(true);
+                  }}
+                  className="rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  + Add
+                </button>
+              )}
+            </div>
           </div>
-          <div className="mt-3 divide-y divide-slate-100 text-xs">
-            {holidays.length === 0 ? (
-              <p className="py-6 text-center text-slate-500">No company holidays configured yet.</p>
-            ) : (
-              holidays.map((h) => (
+          {onOpenHolidayCalendar && (
+            <button
+              type="button"
+              onClick={onOpenHolidayCalendar}
+              className="mt-2.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-center text-[11px] font-semibold text-[#0B1B36] hover:bg-slate-100"
+            >
+              Open Full {holYearFilter === 'ALL' ? '2027' : holYearFilter} Interactive Calendar
+            </button>
+          )}
+          <div className="mt-3 max-h-[420px] divide-y divide-slate-100 overflow-y-auto text-xs">
+            {(() => {
+              const filteredHolidays =
+                holYearFilter === 'ALL'
+                  ? holidays
+                  : holidays.filter((h) => String(h.date || '').startsWith(`${holYearFilter}-`));
+              if (filteredHolidays.length === 0) {
+                return <p className="py-6 text-center text-slate-500">No holidays configured for {holYearFilter}.</p>;
+              }
+              return filteredHolidays.map((h) => (
                 <div key={h.holidayId} className="flex items-center justify-between gap-2 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate font-medium text-slate-800">{h.name}</p>
-                    <p className="font-mono text-[11px] text-slate-500">
+                    <p className="font-mono text-[11px] text-slate-500 tabular-nums">
                       {h.date} · {h.type}
+                      {h.isOptional ? ' · Optional' : ''}
                     </p>
                   </div>
                   {isAdmin && (
@@ -491,6 +529,8 @@ export function LeavesView({user, onToast}: LeavesViewProps) {
                           setHolDate(h.date);
                           setHolName(h.name);
                           setHolType(h.type || 'COMPANY');
+                          setHolDesc(h.description || '');
+                          setHolOptional(Boolean(h.isOptional));
                           setShowHolidayModal(true);
                         }}
                         className="rounded border border-slate-200 p-1 text-slate-600 hover:bg-slate-50"
@@ -509,8 +549,8 @@ export function LeavesView({user, onToast}: LeavesViewProps) {
                     </div>
                   )}
                 </div>
-              ))
-            )}
+              ));
+            })()}
           </div>
         </div>
       </div>
@@ -778,6 +818,7 @@ export function LeavesView({user, onToast}: LeavesViewProps) {
               <input
                 required
                 type="text"
+                maxLength={120}
                 value={holName}
                 onChange={(e) => setHolName(e.target.value)}
                 placeholder="Holiday Name"
@@ -792,6 +833,22 @@ export function LeavesView({user, onToast}: LeavesViewProps) {
                 <option value="NATIONAL">National Holiday</option>
                 <option value="REGIONAL">Regional Holiday</option>
               </select>
+              <textarea
+                rows={2}
+                maxLength={240}
+                value={holDesc}
+                onChange={(e) => setHolDesc(e.target.value)}
+                placeholder="Notes / Gazetted details (optional)"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+              <label className="flex items-center gap-2 text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={holOptional}
+                  onChange={(e) => setHolOptional(e.target.checked)}
+                />
+                Optional / Restricted Holiday (RH)
+              </label>
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setShowHolidayModal(false)} className="rounded-lg border px-3 py-2">
                   Cancel

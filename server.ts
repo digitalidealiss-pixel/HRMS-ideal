@@ -4,6 +4,7 @@ import path from 'node:path';
 import express from 'express';
 import type {Request, Response} from 'express';
 import {createServer as createViteServer} from 'vite';
+import {INDIAN_HOLIDAYS_2027} from './src/data/indianHolidays2027';
 
 const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -134,7 +135,7 @@ function createInitialDb(): DatabaseSchema {
     ],
     leaveApplications: [],
     leaveBalances: [],
-    holidays: [],
+    holidays: INDIAN_HOLIDAYS_2027.map((h) => ({...h})),
     salaryStructure: [],
     payroll: [],
     payslips: [],
@@ -167,6 +168,7 @@ function createInitialDb(): DatabaseSchema {
       adminRecoveryEmail: '',
       otpWebhookUrl: '',
       gasWebAppUrl: '',
+      holidays2027Seeded: true,
     },
     loginHistory: [],
     syncQueue: [],
@@ -174,6 +176,47 @@ function createInitialDb(): DatabaseSchema {
     travelConveyance: [],
     foodAllowances: [],
   };
+}
+
+function isValidIsoDate(raw: unknown): string | null {
+  const s = String(raw || '').trim();
+  const match = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const y = Number(match[1]);
+  const m = Number(match[2]);
+  const d = Number(match[3]);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() + 1 !== m || dt.getUTCDate() !== d) {
+    return null;
+  }
+  return s;
+}
+
+function sortHolidaysChrono(list: any[]): any[] {
+  return [...(Array.isArray(list) ? list : [])].sort(
+    (a, b) =>
+      String(a?.date || '').localeCompare(String(b?.date || '')) ||
+      String(a?.name || '').localeCompare(String(b?.name || '')),
+  );
+}
+
+function mergeDefaultIndianHolidays2027(existing: any[]): {merged: any[]; addedCount: number} {
+  const list = Array.isArray(existing) ? [...existing] : [];
+  const existingIds = new Set(list.map((h) => String(h?.holidayId || '').trim()));
+  const existingKeys = new Set(
+    list.map((h) => `${String(h?.date || '').trim()}|${String(h?.name || '').trim().toLowerCase()}`),
+  );
+  let addedCount = 0;
+  for (const h of INDIAN_HOLIDAYS_2027) {
+    const key = `${h.date}|${h.name.toLowerCase()}`;
+    if (!existingIds.has(h.holidayId) && !existingKeys.has(key)) {
+      list.push({...h});
+      existingIds.add(h.holidayId);
+      existingKeys.add(key);
+      addedCount++;
+    }
+  }
+  return {merged: sortHolidaysChrono(list), addedCount};
 }
 
 function getOvertimePolicy(db: DatabaseSchema) {
@@ -280,6 +323,16 @@ function loadDb(): DatabaseSchema {
   }
   if (!Array.isArray(parsed.foodAllowances)) {
     parsed.foodAllowances = [];
+    dirty = true;
+  }
+  if (!Array.isArray(parsed.holidays)) {
+    parsed.holidays = [];
+    dirty = true;
+  }
+  if (!parsed.appSettings.holidays2027Seeded) {
+    const {merged} = mergeDefaultIndianHolidays2027(parsed.holidays);
+    parsed.holidays = merged;
+    parsed.appSettings.holidays2027Seeded = true;
     dirty = true;
   }
   if (dirty) saveDb(parsed);
@@ -3052,7 +3105,15 @@ async function startServer() {
             leaveTypes: db.leaveTypes,
             applications: [...applications].reverse(),
             balances,
-            holidays: db.holidays,
+            holidays: sortHolidaysChrono(db.holidays),
+          });
+          return;
+        }
+
+        case 'getHolidays': {
+          res.json({
+            ok: true,
+            holidays: sortHolidaysChrono(db.holidays),
           });
           return;
         }
@@ -3863,25 +3924,53 @@ async function startServer() {
 
         case 'saveHoliday': {
           requireRole(authUser, ['SUPER_ADMIN', 'HR_ADMIN']);
+          const validTypes = new Set(['NATIONAL', 'REGIONAL', 'COMPANY']);
+          if (payload.type !== undefined && !validTypes.has(String(payload.type))) {
+            throw new Error('Invalid holiday type. Must be NATIONAL, REGIONAL, or COMPANY.');
+          }
           if (payload.holidayId) {
             const existing = db.holidays.find((h) => h.holidayId === payload.holidayId);
             if (!existing) throw new Error('Holiday not found.');
-            existing.date = payload.date ?? existing.date;
-            existing.name = payload.name ?? existing.name;
-            existing.type = payload.type ?? existing.type;
-            appendAudit(db, authUser, 'UPDATE_HOLIDAY', 'LEAVES', existing.holidayId, existing.name);
+            if (payload.date !== undefined) {
+              const validDate = isValidIsoDate(payload.date);
+              if (!validDate) throw new Error('Valid YYYY-MM-DD holiday date is required.');
+              existing.date = validDate;
+            }
+            if (payload.name !== undefined) {
+              const cleanName = String(payload.name || '').trim().slice(0, 120);
+              if (!cleanName) throw new Error('Holiday name cannot be empty.');
+              existing.name = cleanName;
+            }
+            if (payload.type !== undefined) {
+              existing.type = payload.type;
+            }
+            if (payload.description !== undefined) {
+              existing.description = String(payload.description || '').trim().slice(0, 240);
+            }
+            if (payload.isOptional !== undefined) {
+              existing.isOptional = Boolean(payload.isOptional);
+            }
+            db.holidays = sortHolidaysChrono(db.holidays);
+            appendAudit(db, authUser, 'UPDATE_HOLIDAY', 'LEAVES', existing.holidayId, `${existing.date} · ${existing.name}`);
             saveDb(db);
             res.json({ok: true, holiday: existing});
             return;
           }
+          const validDate = isValidIsoDate(payload.date);
+          if (!validDate) throw new Error('Valid YYYY-MM-DD holiday date is required.');
+          const cleanName = String(payload.name || '').trim().slice(0, 120);
+          if (!cleanName) throw new Error('Holiday name is required.');
           const holiday = {
             holidayId: `HOL-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
-            date: payload.date,
-            name: payload.name,
-            type: payload.type || 'COMPANY',
+            date: validDate,
+            name: cleanName,
+            type: (payload.type as 'NATIONAL' | 'REGIONAL' | 'COMPANY') || 'COMPANY',
+            description: String(payload.description || '').trim().slice(0, 240),
+            isOptional: Boolean(payload.isOptional),
           };
           db.holidays.push(holiday);
-          appendAudit(db, authUser, 'CREATE_HOLIDAY', 'LEAVES', holiday.holidayId, holiday.name);
+          db.holidays = sortHolidaysChrono(db.holidays);
+          appendAudit(db, authUser, 'CREATE_HOLIDAY', 'LEAVES', holiday.holidayId, `${holiday.date} · ${holiday.name}`);
           saveDb(db);
           res.json({ok: true, holiday});
           return;
@@ -3889,12 +3978,58 @@ async function startServer() {
 
         case 'deleteHoliday': {
           requireRole(authUser, ['SUPER_ADMIN', 'HR_ADMIN']);
-          const idx = db.holidays.findIndex((h) => h.holidayId === payload.holidayId);
+          const holidayId = String(payload.holidayId || '').trim();
+          const idx = db.holidays.findIndex((h) => h.holidayId === holidayId);
           if (idx === -1) throw new Error('Holiday not found.');
-          db.holidays.splice(idx, 1);
-          appendAudit(db, authUser, 'DELETE_HOLIDAY', 'LEAVES', payload.holidayId, 'Deleted holiday');
+          const [removed] = db.holidays.splice(idx, 1);
+          appendAudit(
+            db,
+            authUser,
+            'DELETE_HOLIDAY',
+            'LEAVES',
+            holidayId,
+            `${removed?.date || ''} · ${removed?.name || 'Deleted holiday'}`,
+          );
           saveDb(db);
           res.json({ok: true});
+          return;
+        }
+
+        case 'seedIndianHolidays2027': {
+          requireRole(authUser, ['SUPER_ADMIN', 'HR_ADMIN']);
+          const mode = payload.mode === 'RESET_2027' ? 'RESET_2027' : 'MERGE_MISSING';
+          let addedCount = 0;
+          if (mode === 'RESET_2027') {
+            const preserved = db.holidays.filter(
+              (h) => !String(h.date || '').startsWith('2027-') && !String(h.holidayId || '').startsWith('IND2027-'),
+            );
+            const fresh2027 = INDIAN_HOLIDAYS_2027.map((h) => ({...h}));
+            addedCount = fresh2027.length;
+            db.holidays = sortHolidaysChrono([...preserved, ...fresh2027]);
+            appendAudit(
+              db,
+              authUser,
+              'RESET_INDIAN_HOLIDAYS_2027',
+              'LEAVES',
+              'HOLIDAY_CALENDAR_2027',
+              `Restored ${addedCount} official 2027 Indian holidays`,
+            );
+          } else {
+            const result = mergeDefaultIndianHolidays2027(db.holidays);
+            db.holidays = result.merged;
+            addedCount = result.addedCount;
+            appendAudit(
+              db,
+              authUser,
+              'SYNC_INDIAN_HOLIDAYS_2027',
+              'LEAVES',
+              'HOLIDAY_CALENDAR_2027',
+              `Synced ${addedCount} missing 2027 Indian holiday(s)`,
+            );
+          }
+          db.appSettings.holidays2027Seeded = true;
+          saveDb(db);
+          res.json({ok: true, addedCount, holidays: db.holidays});
           return;
         }
 

@@ -174,6 +174,9 @@ function doPost(e) {
       case 'getLeaveData':
         return jsonResponse_(handleGetLeaveData_(authUser));
 
+      case 'getHolidays':
+        return jsonResponse_(handleGetHolidays_());
+
       case 'applyLeave':
         return jsonResponse_(handleApplyLeave_(authUser, payload));
 
@@ -304,6 +307,10 @@ function doPost(e) {
       case 'deleteHoliday':
         requireRole_(authUser, ['SUPER_ADMIN', 'HR_ADMIN']);
         return jsonResponse_(handleDeleteHoliday_(authUser, payload));
+
+      case 'seedIndianHolidays2027':
+        requireRole_(authUser, ['SUPER_ADMIN', 'HR_ADMIN']);
+        return jsonResponse_(handleSeedIndianHolidays2027_(authUser, payload));
 
       default:
         return jsonResponse_({ ok: false, error: 'Unknown API action: ' + action });
@@ -2907,11 +2914,71 @@ function handleSyncOfflineQueue_(authUser, payload) {
   return { ok: true, results: results };
 }
 
+function sortHolidaysChrono_(list) {
+  return (list || []).slice().sort(function (a, b) {
+    var da = String(a && a.date || '').slice(0, 10);
+    var db = String(b && b.date || '').slice(0, 10);
+    if (da !== db) return da < db ? -1 : 1;
+    return String(a && a.name || '').localeCompare(String(b && b.name || ''));
+  });
+}
+
+function normalizeHolidayRow_(h) {
+  return {
+    holidayId: String(h.holidayId || ''),
+    date: String(h.date || '').slice(0, 10),
+    name: String(h.name || ''),
+    type: String(h.type || 'COMPANY'),
+    description: String(h.description || ''),
+    isOptional: h.isOptional === true || String(h.isOptional).toLowerCase() === 'true'
+  };
+}
+
+function ensure2027IndianHolidaysSeededOnce_() {
+  ensureSheetColumns_(SHEET_NAMES.HOLIDAYS, ['description', 'isOptional']);
+  var settings = readSheetAsObjects_(SHEET_NAMES.APP_SETTINGS);
+  var flagRow = settings.filter(function (s) { return s.settingKey === 'holidays2027Seeded'; })[0];
+  if (flagRow && String(flagRow.settingValue).toLowerCase() === 'true') return;
+  var existing = readSheetAsObjects_(SHEET_NAMES.HOLIDAYS);
+  var existingIds = {};
+  var existingKeys = {};
+  existing.forEach(function (h) {
+    existingIds[String(h.holidayId || '')] = true;
+    existingKeys[String(h.date || '').slice(0, 10) + '|' + String(h.name || '').trim().toLowerCase()] = true;
+  });
+  (INDIAN_HOLIDAYS_2027 || []).forEach(function (h) {
+    var key = h.date + '|' + h.name.toLowerCase();
+    if (!existingIds[h.holidayId] && !existingKeys[key]) {
+      appendRowObj_(SHEET_NAMES.HOLIDAYS, {
+        holidayId: h.holidayId,
+        date: h.date,
+        name: h.name,
+        type: h.type,
+        description: h.description || '',
+        isOptional: Boolean(h.isOptional)
+      });
+    }
+  });
+  var now = new Date().toISOString();
+  if (flagRow) {
+    updateRowByKey_(SHEET_NAMES.APP_SETTINGS, 'settingKey', 'holidays2027Seeded', { settingValue: 'true', updatedAt: now });
+  } else {
+    appendRowObj_(SHEET_NAMES.APP_SETTINGS, { settingKey: 'holidays2027Seeded', settingValue: 'true', updatedAt: now });
+  }
+}
+
+function handleGetHolidays_() {
+  ensure2027IndianHolidaysSeededOnce_();
+  var holidays = readSheetAsObjects_(SHEET_NAMES.HOLIDAYS).map(normalizeHolidayRow_);
+  return { ok: true, holidays: sortHolidaysChrono_(holidays) };
+}
+
 function handleGetLeaveData_(authUser) {
+  ensure2027IndianHolidaysSeededOnce_();
   var types = readSheetAsObjects_(SHEET_NAMES.LEAVE_TYPES);
   var apps = readSheetAsObjects_(SHEET_NAMES.LEAVE_APPLICATIONS);
   var balances = readSheetAsObjects_(SHEET_NAMES.LEAVE_BALANCES);
-  var holidays = readSheetAsObjects_(SHEET_NAMES.HOLIDAYS);
+  var holidays = sortHolidaysChrono_(readSheetAsObjects_(SHEET_NAMES.HOLIDAYS).map(normalizeHolidayRow_));
   if (authUser.role === 'EMPLOYEE') {
     apps = apps.filter(function (a) { return a.employeeId === authUser.employeeId; });
     balances = balances.filter(function (b) { return b.employeeId === authUser.employeeId; });
@@ -3643,26 +3710,121 @@ function handleDeleteDesignation_(authUser, payload) {
   return { ok: true };
 }
 
+function isValidHolidayDate_(raw) {
+  var s = String(raw || '').trim();
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  var y = Number(m[1]);
+  var mo = Number(m[2]);
+  var d = Number(m[3]);
+  var dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() + 1 !== mo || dt.getUTCDate() !== d) return null;
+  return s;
+}
+
 function handleSaveHoliday_(authUser, payload) {
+  ensureSheetColumns_(SHEET_NAMES.HOLIDAYS, ['description', 'isOptional']);
+  var allowedTypes = { NATIONAL: true, REGIONAL: true, COMPANY: true };
+  if (payload.type && !allowedTypes[payload.type]) {
+    throw new Error('Invalid holiday type. Must be NATIONAL, REGIONAL, or COMPANY.');
+  }
   if (payload.holidayId) {
-    updateRowByKey_(SHEET_NAMES.HOLIDAYS, 'holidayId', payload.holidayId, {
-      date: payload.date,
-      name: payload.name,
-      type: payload.type || 'COMPANY'
-    });
-    logAudit_(authUser, 'UPDATE_HOLIDAY', 'LEAVES', payload.holidayId, payload.name);
+    var existing = readSheetAsObjects_(SHEET_NAMES.HOLIDAYS).filter(function (h) { return String(h.holidayId) === String(payload.holidayId); })[0];
+    if (!existing) throw new Error('Holiday not found.');
+    var patch = {};
+    if (payload.date !== undefined) {
+      var validDate = isValidHolidayDate_(payload.date);
+      if (!validDate) throw new Error('Valid YYYY-MM-DD holiday date is required.');
+      patch.date = validDate;
+    }
+    if (payload.name !== undefined) {
+      var cleanName = String(payload.name || '').trim().slice(0, 120);
+      if (!cleanName) throw new Error('Holiday name cannot be empty.');
+      patch.name = cleanName;
+    }
+    if (payload.type !== undefined) patch.type = payload.type;
+    if (payload.description !== undefined) patch.description = String(payload.description || '').trim().slice(0, 240);
+    if (payload.isOptional !== undefined) patch.isOptional = Boolean(payload.isOptional);
+    updateRowByKey_(SHEET_NAMES.HOLIDAYS, 'holidayId', payload.holidayId, patch);
+    logAudit_(authUser, 'UPDATE_HOLIDAY', 'LEAVES', payload.holidayId, (patch.date || existing.date) + ' · ' + (patch.name || existing.name));
     return { ok: true };
   }
+  var validNewDate = isValidHolidayDate_(payload.date);
+  if (!validNewDate) throw new Error('Valid YYYY-MM-DD holiday date is required.');
+  var cleanNewName = String(payload.name || '').trim().slice(0, 120);
+  if (!cleanNewName) throw new Error('Holiday name is required.');
   var id = 'HOL-' + Utilities.getUuid().slice(0, 6).toUpperCase();
-  appendRowObj_(SHEET_NAMES.HOLIDAYS, { holidayId: id, date: payload.date, name: payload.name, type: payload.type || 'COMPANY' });
-  logAudit_(authUser, 'CREATE_HOLIDAY', 'LEAVES', id, payload.name);
-  return { ok: true };
+  var holRecord = {
+    holidayId: id,
+    date: validNewDate,
+    name: cleanNewName,
+    type: payload.type || 'COMPANY',
+    description: String(payload.description || '').trim().slice(0, 240),
+    isOptional: Boolean(payload.isOptional)
+  };
+  appendRowObj_(SHEET_NAMES.HOLIDAYS, holRecord);
+  logAudit_(authUser, 'CREATE_HOLIDAY', 'LEAVES', id, validNewDate + ' · ' + cleanNewName);
+  return { ok: true, holiday: holRecord };
 }
 
 function handleDeleteHoliday_(authUser, payload) {
   deleteRowByKey_(SHEET_NAMES.HOLIDAYS, 'holidayId', payload.holidayId);
   logAudit_(authUser, 'DELETE_HOLIDAY', 'LEAVES', payload.holidayId, 'Deleted holiday');
   return { ok: true };
+}
+
+function handleSeedIndianHolidays2027_(authUser, payload) {
+  ensureSheetColumns_(SHEET_NAMES.HOLIDAYS, ['description', 'isOptional']);
+  var mode = payload && payload.mode === 'RESET_2027' ? 'RESET_2027' : 'MERGE_MISSING';
+  var existing = readSheetAsObjects_(SHEET_NAMES.HOLIDAYS);
+  var addedCount = 0;
+
+  if (mode === 'RESET_2027') {
+    existing.forEach(function (h) {
+      var d = String(h.date || '').slice(0, 10);
+      var hid = String(h.holidayId || '');
+      if (d.indexOf('2027-') === 0 || hid.indexOf('IND2027-') === 0) {
+        deleteRowByKey_(SHEET_NAMES.HOLIDAYS, 'holidayId', hid);
+      }
+    });
+    (INDIAN_HOLIDAYS_2027 || []).forEach(function (h) {
+      appendRowObj_(SHEET_NAMES.HOLIDAYS, {
+        holidayId: h.holidayId,
+        date: h.date,
+        name: h.name,
+        type: h.type,
+        description: h.description || '',
+        isOptional: Boolean(h.isOptional)
+      });
+      addedCount++;
+    });
+    logAudit_(authUser, 'RESET_INDIAN_HOLIDAYS_2027', 'LEAVES', 'HOLIDAY_CALENDAR_2027', 'Restored ' + addedCount + ' official 2027 Indian holidays');
+  } else {
+    var existingIds = {};
+    var existingKeys = {};
+    existing.forEach(function (h) {
+      existingIds[String(h.holidayId || '')] = true;
+      existingKeys[String(h.date || '').slice(0, 10) + '|' + String(h.name || '').trim().toLowerCase()] = true;
+    });
+    (INDIAN_HOLIDAYS_2027 || []).forEach(function (h) {
+      var key = h.date + '|' + h.name.toLowerCase();
+      if (!existingIds[h.holidayId] && !existingKeys[key]) {
+        appendRowObj_(SHEET_NAMES.HOLIDAYS, {
+          holidayId: h.holidayId,
+          date: h.date,
+          name: h.name,
+          type: h.type,
+          description: h.description || '',
+          isOptional: Boolean(h.isOptional)
+        });
+        addedCount++;
+      }
+    });
+    logAudit_(authUser, 'SYNC_INDIAN_HOLIDAYS_2027', 'LEAVES', 'HOLIDAY_CALENDAR_2027', 'Synced ' + addedCount + ' missing 2027 Indian holiday(s)');
+  }
+
+  var holidays = sortHolidaysChrono_(readSheetAsObjects_(SHEET_NAMES.HOLIDAYS).map(normalizeHolidayRow_));
+  return { ok: true, addedCount: addedCount, holidays: holidays };
 }
 
 function handleGetDashboardAnalytics_(authUser, payload) {

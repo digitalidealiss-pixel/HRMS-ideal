@@ -242,6 +242,8 @@ export interface HolidayRecord {
   date: string;
   name: string;
   type: 'NATIONAL' | 'REGIONAL' | 'COMPANY';
+  description?: string;
+  isOptional?: boolean;
 }
 
 export interface SalaryStructure {
@@ -432,6 +434,7 @@ export interface AppSettings {
   adminRecoveryEmail?: string;
   otpWebhookUrl?: string;
   gasWebAppUrl?: string;
+  holidays2027Seeded?: boolean;
 }
 
 export type FoodMealType = 'BREAKFAST' | 'LUNCH' | 'DINNER';
